@@ -216,26 +216,24 @@ async function buscar(){
   resultsEl.innerHTML = "";
 
   try{
-    const ligaIds = Object.keys(LIGAS);
-    let todosFixtures = [];
-
-    for(const ligaId of ligaIds){
-      const resp = await fetch(`/api/fixtures?date=${fecha}&league=${ligaId}&season=2026`);
-      const data = await resp.json();
-      if(data.error){ throw new Error(data.error); }
-      if(data.errors && Object.keys(data.errors).length){
-        throw new Error(JSON.stringify(data.errors));
-      }
-      todosFixtures = todosFixtures.concat(data.response || []);
+    const ligaIds = Object.keys(LIGAS).map(Number);
+    const resp = await fetch(`/api/fixtures?date=${fecha}`);
+    const data = await resp.json();
+    if(data.error){ throw new Error(data.error); }
+    if(data.errors && Object.keys(data.errors).length){
+      throw new Error(JSON.stringify(data.errors));
     }
+    const todosFixtures = data.response || [];
 
     const conArgentinos = todosFixtures.filter(f => {
-      return ARGENTINOS_POR_EQUIPO[f.teams.home.name] || ARGENTINOS_POR_EQUIPO[f.teams.away.name];
+      const enLigaGrande = ligaIds.includes(f.league.id);
+      const tieneArgentino = ARGENTINOS_POR_EQUIPO[f.teams.home.name] || ARGENTINOS_POR_EQUIPO[f.teams.away.name];
+      return enLigaGrande && tieneArgentino;
     });
 
     if(conArgentinos.length === 0){
       resultsEl.innerHTML = `<div class="empty">No hay partidos de la lista curada para esa fecha.<br>Probá otra fecha o sumá equipos en ARGENTINOS_POR_EQUIPO.</div>`;
-      statusEl.textContent = `Se revisaron ${todosFixtures.length} partidos en ${ligaIds.length} ligas.`;
+      statusEl.textContent = `Se revisaron ${todosFixtures.length} partidos en total.`;
       btn.disabled = false;
       return;
     }
