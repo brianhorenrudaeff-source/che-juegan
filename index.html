@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Che, Juegan — Argentinos en las grandes ligas</title>
+<style>
+  :root{
+    --bg: #0b1020;
+    --bg-card: #131a30;
+    --line: #23304f;
+    --sky: #6fb3e0;
+    --sky-bright: #9fd3f2;
+    --gold: #e8c15a;
+    --text: #e9edf5;
+    --muted: #8b96b3;
+    --starter: #4fce87;
+    --bench: #e8c15a;
+    --unknown: #6d7896;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    min-height:100vh;
+  }
+  .stripe{
+    height:6px;
+    background: repeating-linear-gradient(90deg, var(--sky) 0 40px, #fff 40px 44px, var(--sky) 44px 84px, var(--gold) 84px 90px);
+    opacity:.9;
+  }
+  header{
+    padding:22px 18px 14px;
+    border-bottom:1px solid var(--line);
+  }
+  header h1{
+    margin:0;
+    font-size:1.5rem;
+    letter-spacing:.5px;
+    font-weight:800;
+  }
+  header h1 span{color:var(--sky-bright);}
+  header p{
+    margin:6px 0 0;
+    color:var(--muted);
+    font-size:.85rem;
+  }
+  .controls{
+    display:flex;
+    gap:8px;
+    padding:14px 18px 4px;
+    flex-wrap:wrap;
+    align-items:center;
+  }
+  .controls input, .controls button{
+    background:var(--bg-card);
+    border:1px solid var(--line);
+    color:var(--text);
+    border-radius:8px;
+    padding:9px 12px;
+    font-size:.85rem;
+  }
+  .controls button{
+    cursor:pointer;
+    background:var(--sky);
+    color:#08101f;
+    font-weight:700;
+    border:none;
+  }
+  .controls button:disabled{opacity:.5;cursor:wait;}
+  .status{
+    padding:0 18px;
+    color:var(--muted);
+    font-size:.8rem;
+    min-height:1.2em;
+  }
+  .status.err{color:#e8746a;}
+  main{padding:8px 14px 60px;}
+  .match{
+    background:var(--bg-card);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:14px 16px;
+    margin:10px 0;
+  }
+  .match .league{
+    font-size:.72rem;
+    text-transform:uppercase;
+    letter-spacing:.08em;
+    color:var(--muted);
+    margin-bottom:6px;
+  }
+  .match .teams{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    font-weight:700;
+    font-size:1.02rem;
+  }
+  .match .time{
+    color:var(--sky-bright);
+    font-weight:700;
+    font-size:.85rem;
+    white-space:nowrap;
+    margin-left:10px;
+  }
+  .argentinos{
+    margin-top:10px;
+    display:flex;
+    flex-wrap:wrap;
+    gap:6px;
+  }
+  .pill{
+    display:flex;
+    align-items:center;
+    gap:6px;
+    background:#0d1428;
+    border:1px solid var(--line);
+    border-radius:999px;
+    padding:5px 10px 5px 8px;
+    font-size:.78rem;
+  }
+  .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+  .dot.starter{background:var(--starter);}
+  .dot.bench{background:var(--bench);}
+  .dot.unknown{background:var(--unknown);}
+  .legend{
+    display:flex;gap:14px;padding:2px 18px 14px;flex-wrap:wrap;
+    color:var(--muted);font-size:.75rem;
+  }
+  .legend span{display:flex;align-items:center;gap:5px;}
+  .empty{
+    text-align:center;
+    color:var(--muted);
+    padding:40px 20px;
+    font-size:.9rem;
+  }
+  footer{
+    padding:16px 18px 30px;
+    color:var(--muted);
+    font-size:.72rem;
+    border-top:1px solid var(--line);
+  }
+</style>
+</head>
+<body>
+<div class="stripe"></div>
+<header>
+  <h1>Che, <span>¿Juegan?</span></h1>
+  <p>Partidos de las grandes ligas donde hay argentinos en cancha (o en el banco)</p>
+</header>
+
+<div class="controls">
+  <input type="date" id="dateInput">
+  <button id="loadBtn">Buscar partidos</button>
+</div>
+<div class="status" id="status"></div>
+<div class="legend">
+  <span><span class="dot starter"></span> Titular confirmado</span>
+  <span><span class="dot bench"></span> Suplente confirmado</span>
+  <span><span class="dot unknown"></span> Convocado, sin confirmar aún</span>
+</div>
+
+<main id="results"></main>
+
+<footer>
+  Prototipo. Datos: API-Football (api-sports.io), consultados desde nuestro propio servidor (la key nunca sale del backend). La lista de argentinos por equipo es curada a mano y hay que actualizarla en cada mercado de pases — buscá "ARGENTINOS_POR_EQUIPO" en el código fuente. La confirmación de titular/suplente solo aparece ~1h antes del partido (lineup oficial).
+</footer>
+
+<script>
+const LIGAS = {
+  39: "Premier League",
+  140: "La Liga",
+  135: "Serie A",
+  78: "Bundesliga",
+  61: "Ligue 1",
+  94: "Primeira Liga",
+  88: "Eredivisie",
+  2: "Champions League",
+};
+
+// ACTUALIZAR EN CADA MERCADO DE PASES. Nombres deben calzar con fixture.teams.home.name / away.name
+const ARGENTINOS_POR_EQUIPO = {
+  "Inter": ["Lautaro Martínez"],
+  "AS Roma": ["Paulo Dybala"],
+  "Benfica": ["Ángel Di María"],
+  "Liverpool": ["Alexis Mac Allister"],
+  "Chelsea": ["Enzo Fernández"],
+  "Atletico Madrid": ["Julián Álvarez"],
+  "Manchester City": ["Julián Álvarez"],
+  "Aston Villa": ["Emiliano Martínez"],
+  "Bayern Munich": ["Nicolás González"],
+  "Juventus": ["Nicolás González", "Federico Chiesa"],
+  "AC Milan": ["Lucas Ocampos"],
+  "Fiorentina": ["Nicolás González"],
+  "Torino": ["Valentín Castellanos"],
+  "Villarreal": ["Juan Foyth"],
+  "Real Sociedad": ["Alex Remiro"],
+  "Sevilla": ["Marcos Acuña"],
+};
+
+document.getElementById("dateInput").valueAsDate = new Date();
+document.getElementById("loadBtn").addEventListener("click", buscar);
+
+async function buscar(){
+  const fecha = document.getElementById("dateInput").value;
+  const statusEl = document.getElementById("status");
+  const resultsEl = document.getElementById("results");
+  const btn = document.getElementById("loadBtn");
+
+  btn.disabled = true;
+  statusEl.className = "status";
+  statusEl.textContent = "Buscando partidos...";
+  resultsEl.innerHTML = "";
+
+  try{
+    const ligaIds = Object.keys(LIGAS);
+    let todosFixtures = [];
+
+    for(const ligaId of ligaIds){
+      const resp = await fetch(`/api/fixtures?date=${fecha}&league=${ligaId}&season=2026`);
+      const data = await resp.json();
+      if(data.error){ throw new Error(data.error); }
+      if(data.errors && Object.keys(data.errors).length){
+        throw new Error(JSON.stringify(data.errors));
+      }
+      todosFixtures = todosFixtures.concat(data.response || []);
+    }
+
+    const conArgentinos = todosFixtures.filter(f => {
+      return ARGENTINOS_POR_EQUIPO[f.teams.home.name] || ARGENTINOS_POR_EQUIPO[f.teams.away.name];
+    });
+
+    if(conArgentinos.length === 0){
+      resultsEl.innerHTML = `<div class="empty">No hay partidos de la lista curada para esa fecha.<br>Probá otra fecha o sumá equipos en ARGENTINOS_POR_EQUIPO.</div>`;
+      statusEl.textContent = `Se revisaron ${todosFixtures.length} partidos en ${ligaIds.length} ligas.`;
+      btn.disabled = false;
+      return;
+    }
+
+    statusEl.textContent = `${conArgentinos.length} partido(s) con argentinos encontrados.`;
+
+    const ahora = Date.now();
+    for(const fixture of conArgentinos){
+      const kickoff = new Date(fixture.fixture.date).getTime();
+      const faltan = kickoff - ahora;
+      let lineupData = null;
+
+      if(faltan < 3*60*60*1000 && faltan > -2*60*60*1000){
+        try{
+          const lresp = await fetch(`/api/lineups?fixture=${fixture.fixture.id}`);
+          const ldata = await lresp.json();
+          lineupData = ldata.response;
+        }catch(e){ /* sin lineup todavía */ }
+      }
+
+      renderMatch(fixture, lineupData);
+    }
+
+  }catch(err){
+    statusEl.className = "status err";
+    statusEl.textContent = "Error: " + err.message;
+  }finally{
+    btn.disabled = false;
+  }
+}
+
+function renderMatch(fixture, lineupData){
+  const resultsEl = document.getElementById("results");
+  const home = fixture.teams.home.name;
+  const away = fixture.teams.away.name;
+  const league = fixture.league.name;
+  const kickoff = new Date(fixture.fixture.date);
+  const hora = kickoff.toLocaleTimeString('es-AR', {hour:'2-digit', minute:'2-digit'});
+
+  const argHome = ARGENTINOS_POR_EQUIPO[home] || [];
+  const argAway = ARGENTINOS_POR_EQUIPO[away] || [];
+  const todos = [...argHome.map(n=>({n,team:home})), ...argAway.map(n=>({n,team:away}))];
+
+  const pills = todos.map(j => {
+    let clase = "unknown";
+    let extra = "sin confirmar";
+    if(lineupData){
+      for(const teamLineup of lineupData){
+        const enTitular = teamLineup.startXI?.some(p => p.player.name.includes(j.n.split(" ").pop()));
+        const enBanco = teamLineup.substitutes?.some(p => p.player.name.includes(j.n.split(" ").pop()));
+        if(enTitular){ clase="starter"; extra="titular"; }
+        else if(enBanco){ clase="bench"; extra="suplente"; }
+      }
+    }
+    return `<div class="pill"><span class="dot ${clase}"></span>${j.n} <small style="color:var(--muted)">(${extra})</small></div>`;
+  }).join("");
+
+  const div = document.createElement("div");
+  div.className = "match";
+  div.innerHTML = `
+    <div class="league">${league}</div>
+    <div class="teams">
+      <span>${home} vs ${away}</span>
+      <span class="time">${hora}</span>
+    </div>
+    <div class="argentinos">${pills}</div>
+  `;
+  resultsEl.appendChild(div);
+}
+</script>
+</body>
+</html>
