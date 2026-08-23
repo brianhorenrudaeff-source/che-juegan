@@ -1,16 +1,16 @@
 export default async function handler(req, res) {
-  const { date, league, season } = req.query;
+  const { date } = req.query;
   const key = process.env.API_FOOTBALL_KEY;
 
   if (!key) {
-    return res.status(500).json({ error: "Falta configurar API_FOOTBALL_KEY en Vercel (Settings > Environment Variables)." });
+    return res.status(500).json({ error: "Falta configurar API_FOOTBALL_KEY en Vercel." });
   }
-  if (!date || !league) {
-    return res.status(400).json({ error: "Faltan parámetros date y league." });
+  if (!date) {
+    return res.status(400).json({ error: "Falta parámetro date." });
   }
 
   try {
-    const url = `https://v3.football.api-sports.io/fixtures?date=${date}&league=${league}&season=${season || 2026}`;
+    const url = `https://v3.football.api-sports.io/fixtures?date=${date}`;
     const apiResp = await fetch(url, {
       headers: { "x-apisports-key": key }
     });
